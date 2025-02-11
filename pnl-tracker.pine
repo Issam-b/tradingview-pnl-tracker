@@ -175,6 +175,7 @@ for tickerIndex = 0 to trackedTickersCount - 1
     totalPnlString = (totalPnl > 0 ? "+" : "") + str.tostring(totalPnl, format.mintick)
     totalPnlColor = totalPnl > 0 ? color.green : color.red
     table.cell(pnlTable, 4, startingRow, totalPnlString, text_color=totalPnlColor)
+    table.cell(pnlTable, 5, 0, "    ") // for offset from the scale bar
 
     filledRows += 1
 
