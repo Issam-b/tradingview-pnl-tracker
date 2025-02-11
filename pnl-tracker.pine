@@ -133,7 +133,7 @@ for tickerIndex = 0 to trackedTickersCount - 1
         if barstate.isfirst
             entyLine = line.new(bar_index, close, bar_index + 1, close, extend=extend.both, color=color.blue, style=line.style_dotted)
             array.push(entryLines, entyLine)
-            entryLineLabel = label.new(bar_index, bar_index, labelString, textcolor=labelTextColor, color=color.black, size=12, style=label.style_label_left)
+            entryLineLabel = label.new(bar_index, bar_index, labelString, textcolor=labelTextColor, color=color.rgb(23, 54, 133), size=12, style=label.style_label_left)
             array.push(entryLineLabels, entryLineLabel)
         else if barstate.islast
             entyLine = array.get(entryLines, index - entryLineSkips)
@@ -148,9 +148,9 @@ for tickerIndex = 0 to trackedTickersCount - 1
 
     if (isCurrentTicker and showBreakEvenLine)
         if barstate.isfirst
-            breakEvenLine = line.new(bar_index, close, bar_index + 1, close, extend=extend.both, color=color.orange, style=line.style_dotted)
+            breakEvenLine = line.new(bar_index, close, bar_index + 1, close, extend=extend.both, color=color.rgb(194, 128, 32), style=line.style_dotted)
             array.push(breakEvenLines, breakEvenLine)
-            breakEvenLineLabel = label.new(bar_index, bar_index, "Break Even", color = color.orange, size=12, style=label.style_label_left)
+            breakEvenLineLabel = label.new(bar_index, bar_index, "Break Even", color=color.rgb(194, 128, 32), size=12, style=label.style_label_left)
             array.push(breakEvenLineLabels, breakEvenLineLabel)
         else if barstate.islast
             breakEvenLine  = array.get(breakEvenLines, tickerIndex - breakEvenLineSkips)
