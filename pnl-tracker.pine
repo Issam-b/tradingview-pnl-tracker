@@ -67,9 +67,6 @@ var breakEvenLines = array.new_line()
 var entryLineLabels = array.new_label()
 var breakEvenLineLabels = array.new_label()
 
-entryLineSkips = 0
-breakEvenLineSkips = 0
-
 // Create the table
 tableRowsCount = 5
 var pnlTable = table.new(position.bottom_right, tableRowsCount + 1, trackedTickersCount + 1, border_width=0)
@@ -77,25 +74,27 @@ var pnlTable = table.new(position.bottom_right, tableRowsCount + 1, trackedTicke
 filledRows = 0
 
 for tickerIndex = 0 to trackedTickersCount - 1
+    // Allocate break even lines and labels
+    array.push(breakEvenLines, na)
+    array.push(breakEvenLineLabels, na)
+
     accumatedEntryPrice = 0.0
     totalPositionSize = 0.0
-    validTrades = 0
 
     for tradeIndex = 0 to trackedTradesCount - 1
+        // Allocate entry lines and labels
+        array.push(entryLines, na)
+        array.push(entryLineLabels, na)
+
         index = tickerIndex * trackedTradesCount + tradeIndex
         positionSizeIter = array.get(sizes, index)
         entryPriceIter = array.get(entries, index)
 
-        if (positionSizeIter == 0 or entryPriceIter == 0)
-            continue
-
-        totalPositionSize += positionSizeIter
-        accumatedEntryPrice += entryPriceIter * positionSizeIter
-        validTrades += 1
+        if (positionSizeIter != 0 and entryPriceIter != 0)
+            totalPositionSize += positionSizeIter
+            accumatedEntryPrice += entryPriceIter * positionSizeIter
 
     if (totalPositionSize == 0 or accumatedEntryPrice == 0)
-        entryLineSkips += 1
-        breakEvenLineSkips += 1
         continue
 
     averageEntryPrice = accumatedEntryPrice / totalPositionSize
@@ -116,7 +115,6 @@ for tickerIndex = 0 to trackedTickersCount - 1
         entryPriceIter = array.get(entries, index)
 
         if (positionSizeIter == 0 or entryPriceIter == 0)
-            entryLineSkips += 1
             continue
 
         tradeBreakEvenPrice = entryPriceIter + fullTradeFee
@@ -124,7 +122,6 @@ for tickerIndex = 0 to trackedTickersCount - 1
         totalPnl += pnl
 
         if (not isCurrentTicker)
-            entryLineSkips += 1
             continue
 
         labelString =  "Bought " + (positionSizeIter > 0 ? "+" : "-") + str.tostring(positionSizeIter) + " | P&L " + (pnl > 0 ? "+" : "") + str.tostring(pnl, format.mintick)
@@ -132,34 +129,30 @@ for tickerIndex = 0 to trackedTickersCount - 1
 
         if barstate.isfirst
             entyLine = line.new(bar_index, close, bar_index + 1, close, extend=extend.both, color=color.blue, style=line.style_dotted)
-            array.push(entryLines, entyLine)
+            array.set(entryLines, index, entyLine)
             entryLineLabel = label.new(bar_index, bar_index, labelString, textcolor=labelTextColor, color=color.rgb(23, 54, 133), size=12, style=label.style_label_left)
-            array.push(entryLineLabels, entryLineLabel)
+            array.set(entryLineLabels, index, entryLineLabel)
         else if barstate.islast
-            entyLine = array.get(entryLines, index - entryLineSkips)
+            entyLine = array.get(entryLines, index)
             line.set_xy1(entyLine, bar_index, entryPriceIter)
             line.set_xy2(entyLine, bar_index + 1, entryPriceIter)
-            entryLineLabel = array.get(entryLineLabels, index - entryLineSkips)
+            entryLineLabel = array.get(entryLineLabels, index)
             label.set_xy(entryLineLabel, bar_index + 5, entryPriceIter)
             label.set_text(entryLineLabel, labelString)
             label.set_textcolor(entryLineLabel, labelTextColor)
-        else
-            entryLineSkips += 1
 
     if (isCurrentTicker and showBreakEvenLine)
         if barstate.isfirst
             breakEvenLine = line.new(bar_index, close, bar_index + 1, close, extend=extend.both, color=color.rgb(194, 128, 32), style=line.style_dotted)
-            array.push(breakEvenLines, breakEvenLine)
+            array.set(breakEvenLines, tickerIndex, breakEvenLine)
             breakEvenLineLabel = label.new(bar_index, bar_index, "Break Even", color=color.rgb(194, 128, 32), size=12, style=label.style_label_left)
-            array.push(breakEvenLineLabels, breakEvenLineLabel)
+            array.set(breakEvenLineLabels, tickerIndex, breakEvenLineLabel)
         else if barstate.islast
-            breakEvenLine  = array.get(breakEvenLines, tickerIndex - breakEvenLineSkips)
+            breakEvenLine  = array.get(breakEvenLines, tickerIndex)
             line.set_xy1(breakEvenLine, bar_index, totalBreakEvenPrice)
             line.set_xy2(breakEvenLine, bar_index + 1, totalBreakEvenPrice)
-            breakEvenLabel  = array.get(breakEvenLineLabels, tickerIndex - breakEvenLineSkips)
+            breakEvenLabel  = array.get(breakEvenLineLabels, tickerIndex)
             label.set_xy(breakEvenLabel, bar_index + 5, totalBreakEvenPrice)
-    else
-        breakEvenLineSkips += 1
 
     // Get ticker cleaned name without the broker
     tickerParts = str.split(ticker, ":")
@@ -179,6 +172,7 @@ for tickerIndex = 0 to trackedTickersCount - 1
 
     filledRows += 1
 
+// Add quick access settings button if there are no positions
 if (filledRows == 0)
     var settingsTable = table.new(position.bottom_right, 2, 1)
     table.cell(settingsTable, 0, 0, "⚙️ PnL", text_color=color.white, bgcolor=color.blue)
