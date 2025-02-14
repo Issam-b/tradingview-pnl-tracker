@@ -60,7 +60,6 @@ if barstate.isfirst
 // Create lines and labels
 var entryLines = array.new_line()
 var breakEvenLines = array.new_line()
-
 var entryLineLabels = array.new_label()
 var breakEvenLineLabels = array.new_label()
 
@@ -166,7 +165,6 @@ for tickerIndex = 0 to trackedTickersCount - 1
     totalPnlColor = totalPnl > 0 ? color.green : color.red
     table.cell(pnlTable, 4, startingRow, totalPnlString, text_color=totalPnlColor)
     table.cell(pnlTable, 5, 0, "    ") // for offset from the scale bar
-
     filledRows += 1
 
 // Add quick access settings button if there are no positions
