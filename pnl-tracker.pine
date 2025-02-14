@@ -13,9 +13,6 @@ trackedTradesCount = 3
 // Trade fee per trade
 tradeFee = input.float(title="Trade Fee (%)", defval=0.1, step=0.01)
 
-// Break even line control
-showBreakEvenLine = input.bool(title="Show break even line and label", defval=true)
-
 var tickers = array.new_string()
 var entries = array.new_float()
 var sizes = array.new_float()
@@ -141,7 +138,7 @@ for tickerIndex = 0 to trackedTickersCount - 1
             label.set_text(entryLineLabel, labelString)
             label.set_textcolor(entryLineLabel, labelTextColor)
 
-    if (isCurrentTicker and showBreakEvenLine)
+    if (isCurrentTicker)
         if barstate.isfirst
             breakEvenLine = line.new(bar_index, close, bar_index + 1, close, extend=extend.both, color=color.rgb(194, 128, 32), style=line.style_dotted)
             array.set(breakEvenLines, tickerIndex, breakEvenLine)
