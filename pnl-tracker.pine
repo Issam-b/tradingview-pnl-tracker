@@ -4,171 +4,236 @@
 //@version=6
 indicator("Trade PnL Tracker", overlay=true, max_boxes_count=500)
 
-// Global constants
+// ──────────────────────────────
+// Global Constants & Inputs
+// ──────────────────────────────
 trackedTickersCount = 2
-trackedTradesCount = 3
+trackedTradesCount   = 3
 
-// User inputs
-
-// Trade fee per trade
 tradeFee = input.float(title="Trade Fee (%)", defval=0.1, step=0.01)
+feeMultiplier = (tradeFee / 100) * 2
 
+// Toggle display for objects.
+displayTradeObjects     = input.bool(true, title="Display Trade Lines & Labels")
+displayBreakEvenObjects = input.bool(true, title="Display Break Even Lines & Labels")
+
+// Boolean to decide whether to filter objects by the default range (200 bars) or show everything.
+filterByRange = input.bool(title="Filter by Default Range (200 bars)", defval=true)
+
+// ──────────────────────────────
+// Automatic Visible Range Calculation
+// ──────────────────────────────
+maxLookback = 200
+dynamicLookback = math.min(maxLookback, bar_index + 1)
+hugeVal = 1e20 // Use a very large number in place of infinity.
+visibleLow  = filterByRange ? ta.lowest(low, dynamicLookback) : -hugeVal
+visibleHigh = filterByRange ? ta.highest(high, dynamicLookback) : hugeVal
+
+// ──────────────────────────────
+// Global Arrays for Trade Data
+// ──────────────────────────────
 var tickers = array.new_string()
 var entries = array.new_float()
-var sizes = array.new_float()
+var sizes   = array.new_float()
 
-// Ticker 1
+// ──────────────────────────────
+// Helper: Add Ticker Data
+// ──────────────────────────────
+f_addTickerData(_ticker, _entry1, _size1, _entry2, _size2, _entry3, _size3) =>
+    array.push(tickers, _ticker)
+    array.push(entries, _entry1)
+    array.push(sizes, _size1)
+    array.push(entries, _entry2)
+    array.push(sizes, _size2)
+    array.push(entries, _entry3)
+    array.push(sizes, _size3)
+
+// ──────────────────────────────
+// Ticker Inputs
+// ──────────────────────────────
 ticker1  = input.symbol(title="Ticker 1", defval="BINANCE:SOLUSDT")
-entry11  = input.price(title="Entry 1", defval=0, inline="ticker_1_trade1")
-size11   = input.float(title="Size 1", defval=0, inline="ticker_1_trade1")
-entry12  = input.price(title="Entry 2", defval=0, inline="ticker_1_trade2")
-size12   = input.float(title="Size 2", defval=0, inline="ticker_1_trade2")
-entry13  = input.price(title="Entry 3", defval=0, inline="ticker_1_trade3")
-size13   = input.float(title="Size 3", defval=0, inline="ticker_1_trade3")
+entry1_1 = input.price(title="Entry 1", defval=0, inline="ticker_1_trade1")
+size1_1  = input.float(title="Size 1", defval=0, inline="ticker_1_trade1")
+entry1_2 = input.price(title="Entry 2", defval=0, inline="ticker_1_trade2")
+size1_2  = input.float(title="Size 2", defval=0, inline="ticker_1_trade2")
+entry1_3 = input.price(title="Entry 3", defval=0, inline="ticker_1_trade3")
+size1_3  = input.float(title="Size 3", defval=0, inline="ticker_1_trade3")
 
-if barstate.isfirst
-    array.push(tickers, ticker1)
-    array.push(entries, entry11)
-    array.push(sizes, size11)
-
-    array.push(entries, entry12)
-    array.push(sizes, size12)
-
-    array.push(entries, entry13)
-    array.push(sizes, size13)
-
-// Ticker 2
 ticker2  = input.symbol(title="Ticker 2", defval="BINANCE:ETHUSDT")
-entry21  = input.price(title="Entry 1", defval=0, inline="ticker_2_trade1")
-size21   = input.float(title="Size 1", defval=0, inline="ticker_2_trade1")
-entry22  = input.price(title="Entry 2", defval=0, inline="ticker_2_trade2")
-size22   = input.float(title="Size 2", defval=0, inline="ticker_2_trade2")
-entry23  = input.price(title="Entry 3", defval=0, inline="ticker_2_trade3")
-size23   = input.float(title="Size 3", defval=0, inline="ticker_2_trade3")
+entry2_1 = input.price(title="Entry 1", defval=0, inline="ticker_2_trade1")
+size2_1  = input.float(title="Size 1", defval=0, inline="ticker_2_trade1")
+entry2_2 = input.price(title="Entry 2", defval=0, inline="ticker_2_trade2")
+size2_2  = input.float(title="Size 2", defval=0, inline="ticker_2_trade2")
+entry2_3 = input.price(title="Entry 3", defval=0, inline="ticker_2_trade3")
+size2_3  = input.float(title="Size 3", defval=0, inline="ticker_2_trade3")
 
 if barstate.isfirst
-    array.push(tickers, ticker2)
-    array.push(entries, entry21)
-    array.push(sizes, size21)
+    f_addTickerData(ticker1, entry1_1, size1_1, entry1_2, size1_2, entry1_3, size1_3)
+    f_addTickerData(ticker2, entry2_1, size2_1, entry2_2, size2_2, entry2_3, size2_3)
 
-    array.push(entries, entry22)
-    array.push(sizes, size22)
+// ──────────────────────────────
+// Global Arrays for Graphical Objects (Pre-Allocated)
+// ──────────────────────────────
+var entryLines          = array.new_line()   // one per trade
+var entryLineLabels     = array.new_label()  // one per trade
+var breakEvenLines      = array.new_line()   // one per ticker
+var breakEvenLineLabels = array.new_label()  // one per ticker
 
-    array.push(entries, entry23)
-    array.push(sizes, size23)
+if barstate.isfirst
+    for tickerIndex = 0 to trackedTickersCount - 1
+        array.push(breakEvenLines, na)
+        array.push(breakEvenLineLabels, na)
+    for tickerIndex = 0 to trackedTickersCount - 1
+        for tradeIndex = 0 to trackedTradesCount - 1
+            array.push(entryLines, na)
+            array.push(entryLineLabels, na)
 
-// Create lines and labels
-var entryLines = array.new_line()
-var breakEvenLines = array.new_line()
-var entryLineLabels = array.new_label()
-var breakEvenLineLabels = array.new_label()
+// ──────────────────────────────
+// Helper Functions for Graphical Objects
+// ──────────────────────────────
+f_createTradeLine(_price, _labelString, _labelTextColor) =>
+    l = line.new(bar_index, _price, bar_index + 1, _price, extend=extend.both, color=color.blue, style=line.style_dotted)
+    lbl = label.new(bar_index, _price, _labelString, textcolor=_labelTextColor, color=color.rgb(23,54,133), size=size.normal, style=label.style_label_left)
+    [l, lbl]
 
-// Create the table
+f_updateTradeLine(_line, _label, _price, _labelString, _labelTextColor) =>
+    line.set_xy1(_line, bar_index, _price)
+    line.set_xy2(_line, bar_index + 1, _price)
+    label.set_xy(_label, bar_index + 5, _price)
+    label.set_text(_label, _labelString)
+    label.set_textcolor(_label, _labelTextColor)
+
+f_handleTradeLine(_idx, _price, _labelString, _labelTextColor) =>
+    // Check each bar if the trade's true price is within the visible range.
+    if _price >= visibleLow and _price <= visibleHigh and displayTradeObjects
+        tLine  = array.get(entryLines, _idx)
+        tLabel = array.get(entryLineLabels, _idx)
+        if na(tLine) or na(tLabel)
+            [newLine, newLabel] = f_createTradeLine(_price, _labelString, _labelTextColor)
+            array.set(entryLines, _idx, newLine)
+            array.set(entryLineLabels, _idx, newLabel)
+        else
+            f_updateTradeLine(tLine, tLabel, _price, _labelString, _labelTextColor)
+    else
+        // Delete objects if out-of-range.
+        tLine  = array.get(entryLines, _idx)
+        tLabel = array.get(entryLineLabels, _idx)
+        if not na(tLine)
+            line.delete(tLine)
+            array.set(entryLines, _idx, na)
+        if not na(tLabel)
+            label.delete(tLabel)
+            array.set(entryLineLabels, _idx, na)
+
+f_createBreakEvenLine(_price) =>
+    l = line.new(bar_index, _price, bar_index + 1, _price, extend=extend.both, color=color.rgb(194,128,32), style=line.style_dotted)
+    lbl = label.new(bar_index, _price, "Break Even", color=color.rgb(194,128,32), size=size.normal, style=label.style_label_left)
+    [l, lbl]
+
+f_updateBreakEvenLine(_line, _label, _price) =>
+    line.set_xy1(_line, bar_index, _price)
+    line.set_xy2(_line, bar_index + 1, _price)
+    label.set_xy(_label, bar_index + 5, _price)
+
+f_handleBreakEvenLine(_tickerIndex, _price) =>
+    if _price >= visibleLow and _price <= visibleHigh and displayBreakEvenObjects
+        beLine  = array.get(breakEvenLines, _tickerIndex)
+        beLabel = array.get(breakEvenLineLabels, _tickerIndex)
+        if na(beLine) or na(beLabel)
+            [newLine, newLabel] = f_createBreakEvenLine(_price)
+            array.set(breakEvenLines, _tickerIndex, newLine)
+            array.set(breakEvenLineLabels, _tickerIndex, newLabel)
+        else
+            f_updateBreakEvenLine(beLine, beLabel, _price)
+    else
+        beLine  = array.get(breakEvenLines, _tickerIndex)
+        beLabel = array.get(breakEvenLineLabels, _tickerIndex)
+        if not na(beLine)
+            line.delete(beLine)
+            array.set(breakEvenLines, _tickerIndex, na)
+        if not na(beLabel)
+            label.delete(beLabel)
+            array.set(breakEvenLineLabels, _tickerIndex, na)
+
+// ──────────────────────────────
+// Create the PnL Table (updates each bar)
+// ──────────────────────────────
 tableRowsCount = 5
 var pnlTable = table.new(position.bottom_right, tableRowsCount + 1, trackedTickersCount + 1, border_width=0)
+var filledRows = 0
 
-filledRows = 0
-
+// ──────────────────────────────
+// Main Loop: Process Each Ticker (runs each bar)
+// ──────────────────────────────
 for tickerIndex = 0 to trackedTickersCount - 1
-    // Allocate break even lines and labels
-    array.push(breakEvenLines, na)
-    array.push(breakEvenLineLabels, na)
+    accumulatedEntryPrice = 0.0
+    totalPositionSize     = 0.0
+    baseIndex = tickerIndex * trackedTradesCount  // starting index for trades of this ticker
 
-    accumatedEntryPrice = 0.0
-    totalPositionSize = 0.0
-
+    // Aggregate entry data for this ticker.
     for tradeIndex = 0 to trackedTradesCount - 1
-        // Allocate entry lines and labels
-        array.push(entryLines, na)
-        array.push(entryLineLabels, na)
+        idx = baseIndex + tradeIndex
+        tradeSize  = array.get(sizes, idx)
+        tradeEntry = array.get(entries, idx)
+        if tradeSize != 0 and tradeEntry != 0
+            totalPositionSize     += tradeSize
+            accumulatedEntryPrice += tradeEntry * tradeSize
 
-        index = tickerIndex * trackedTradesCount + tradeIndex
-        positionSizeIter = array.get(sizes, index)
-        entryPriceIter = array.get(entries, index)
+    if totalPositionSize == 0 or accumulatedEntryPrice == 0
+        continue  // Skip ticker if no valid trades
 
-        if (positionSizeIter != 0 and entryPriceIter != 0)
-            totalPositionSize += positionSizeIter
-            accumatedEntryPrice += entryPriceIter * positionSizeIter
+    averageEntryPrice  = accumulatedEntryPrice / totalPositionSize
+    tickerSymbol       = array.get(tickers, tickerIndex)
+    currentTickerPrice = request.security(tickerSymbol, timeframe.period, close)
+    isCurrentTicker    = (tickerSymbol == ticker.standard())
 
-    if (totalPositionSize == 0 or accumatedEntryPrice == 0)
-        continue
-
-    averageEntryPrice = accumatedEntryPrice / totalPositionSize
-
-    ticker  = array.get(tickers, tickerIndex)
-    currentTickerPrice = request.security(ticker, timeframe.period, close)
-    isCurrentTicker = (ticker == ticker.standard())
-    fullTradeFee = averageEntryPrice * (tradeFee / 100) * 2
+    fullTradeFee        = averageEntryPrice * feeMultiplier
     totalBreakEvenPrice = averageEntryPrice + fullTradeFee
-
     totalPnl = 0.0
 
-    // the indexing is a bit messed up here, but well!
+    // Process each trade for the ticker.
     for tradeIndex = 0 to trackedTradesCount - 1
-        index = tickerIndex * trackedTradesCount + tradeIndex
-
-        positionSizeIter = array.get(sizes, index)
-        entryPriceIter = array.get(entries, index)
-
-        if (positionSizeIter == 0 or entryPriceIter == 0)
+        idx = baseIndex + tradeIndex
+        tradeSize  = array.get(sizes, idx)
+        tradeEntry = array.get(entries, idx)
+        if tradeSize == 0 or tradeEntry == 0
             continue
 
-        tradeBreakEvenPrice = entryPriceIter + fullTradeFee
-        pnl = (currentTickerPrice - tradeBreakEvenPrice) * positionSizeIter
-        totalPnl += pnl
+        tradeBreakEvenPrice = tradeEntry + fullTradeFee
+        tradePnl = (currentTickerPrice - tradeBreakEvenPrice) * tradeSize
+        totalPnl += tradePnl
 
-        if (not isCurrentTicker)
-            continue
+        if isCurrentTicker
+            labelString = "Bought " + (tradeSize > 0 ? "+" : "-") +
+                          str.tostring(tradeSize) +
+                          " | P&L " + (tradePnl > 0 ? "+" : "") +
+                          str.tostring(tradePnl, format.mintick)
+            labelTextColor = tradePnl > 0 ? color.green : color.red
+            f_handleTradeLine(idx, tradeEntry, labelString, labelTextColor)
 
-        labelString =  "Bought " + (positionSizeIter > 0 ? "+" : "-") + str.tostring(positionSizeIter) + " | P&L " + (pnl > 0 ? "+" : "") + str.tostring(pnl, format.mintick)
-        labelTextColor = pnl > 0 ? color.green : color.red
+    // Process break-even line for the ticker.
+    if isCurrentTicker
+        f_handleBreakEvenLine(tickerIndex, totalBreakEvenPrice)
 
-        if barstate.isfirst
-            entyLine = line.new(bar_index, close, bar_index + 1, close, extend=extend.both, color=color.blue, style=line.style_dotted)
-            array.set(entryLines, index, entyLine)
-            entryLineLabel = label.new(bar_index, bar_index, labelString, textcolor=labelTextColor, color=color.rgb(23, 54, 133), size=12, style=label.style_label_left)
-            array.set(entryLineLabels, index, entryLineLabel)
-        else if barstate.islast
-            entyLine = array.get(entryLines, index)
-            line.set_xy1(entyLine, bar_index, entryPriceIter)
-            line.set_xy2(entyLine, bar_index + 1, entryPriceIter)
-            entryLineLabel = array.get(entryLineLabels, index)
-            label.set_xy(entryLineLabel, bar_index + 5, entryPriceIter)
-            label.set_text(entryLineLabel, labelString)
-            label.set_textcolor(entryLineLabel, labelTextColor)
+    // Prepare ticker name for table display (strip broker prefix).
+    tickerParts = str.split(tickerSymbol, ":")
+    cleanTickerName = array.size(tickerParts) > 1 ? array.get(tickerParts, 1) : tickerSymbol
 
-    if (isCurrentTicker)
-        if barstate.isfirst
-            breakEvenLine = line.new(bar_index, close, bar_index + 1, close, extend=extend.both, color=color.rgb(194, 128, 32), style=line.style_dotted)
-            array.set(breakEvenLines, tickerIndex, breakEvenLine)
-            breakEvenLineLabel = label.new(bar_index, bar_index, "Break Even", color=color.rgb(194, 128, 32), size=12, style=label.style_label_left)
-            array.set(breakEvenLineLabels, tickerIndex, breakEvenLineLabel)
-        else if barstate.islast
-            breakEvenLine  = array.get(breakEvenLines, tickerIndex)
-            line.set_xy1(breakEvenLine, bar_index, totalBreakEvenPrice)
-            line.set_xy2(breakEvenLine, bar_index + 1, totalBreakEvenPrice)
-            breakEvenLabel  = array.get(breakEvenLineLabels, tickerIndex)
-            label.set_xy(breakEvenLabel, bar_index + 5, totalBreakEvenPrice)
-
-    // Get ticker cleaned name without the broker
-    tickerParts = str.split(ticker, ":")
-    cleanTickerName = array.size(tickerParts) > 1 ? array.get(tickerParts, 1) : ticker
-
-    startingRow = tickerIndex + 1 // exclude the header
+    startingRow = tickerIndex + 1  // First row reserved for header
     table.cell(pnlTable, 0, startingRow, cleanTickerName, text_color=color.gray)
-    totalPositionSizeString = (totalPositionSize > 0 ? "+" : "-") + str.tostring(totalPositionSize, format.mintick)
-    table.cell(pnlTable, 1, startingRow, totalPositionSizeString, text_color=color.green)
-    averageEntryPriceString = "@" + str.tostring(averageEntryPrice, format.mintick)
-    table.cell(pnlTable, 2, startingRow, averageEntryPriceString, text_color=color.gray)
+    posSizeStr = (totalPositionSize > 0 ? "+" : "-") + str.tostring(totalPositionSize, format.mintick)
+    table.cell(pnlTable, 1, startingRow, posSizeStr, text_color=color.green)
+    avgEntryStr = "@" + str.tostring(averageEntryPrice, format.mintick)
+    table.cell(pnlTable, 2, startingRow, avgEntryStr, text_color=color.gray)
     table.cell(pnlTable, 3, startingRow, "P&L", text_color=color.gray)
-    totalPnlString = (totalPnl > 0 ? "+" : "") + str.tostring(totalPnl, format.mintick)
-    totalPnlColor = totalPnl > 0 ? color.green : color.red
-    table.cell(pnlTable, 4, startingRow, totalPnlString, text_color=totalPnlColor)
-    table.cell(pnlTable, 5, 0, "    ") // for offset from the scale bar
+    pnlStr = (totalPnl > 0 ? "+" : "") + str.tostring(totalPnl, format.mintick)
+    pnlColor = totalPnl > 0 ? color.green : color.red
+    table.cell(pnlTable, 4, startingRow, pnlStr, text_color=pnlColor)
+
+    table.cell(pnlTable, 5, 0, "    ")
     filledRows += 1
 
-// Add quick access settings button if there are no positions
-if (filledRows == 0)
+if filledRows == 0
     var settingsTable = table.new(position.bottom_right, 2, 1)
     table.cell(settingsTable, 0, 0, "⚙️ PnL", text_color=color.white, bgcolor=color.blue)
-    table.cell(settingsTable, 1, 0, "    ") // for offset from the scale bar
+    table.cell(settingsTable, 1, 0, "    ")
