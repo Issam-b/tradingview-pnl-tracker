@@ -161,11 +161,16 @@ f_handleBreakEvenLine(_tickerIndex, _price) =>
 tableRowsCount = 5
 var pnlTable = table.new(position.bottom_right, tableRowsCount + 1, trackedTickersCount + 1, border_width=0)
 var filledRows = 0
+var totalPnl = 0.0
 
 // ──────────────────────────────
 // Main Loop: Process Each Ticker (runs each bar)
 // ──────────────────────────────
 for tickerIndex = 0 to trackedTickersCount - 1
+    if (tickerIndex == 0)
+        totalPnl := 0.0
+        filledRows := 0
+
     accumulatedEntryPrice = 0.0
     totalPositionSize     = 0.0
     baseIndex = tickerIndex * trackedTradesCount  // starting index for trades of this ticker
@@ -189,7 +194,7 @@ for tickerIndex = 0 to trackedTickersCount - 1
 
     fullTradeFee        = averageEntryPrice * feeMultiplier
     totalBreakEvenPrice = averageEntryPrice + fullTradeFee
-    totalPnl = 0.0
+    totalSymbolPnl = 0.0
 
     // Process each trade for the ticker.
     for tradeIndex = 0 to trackedTradesCount - 1
@@ -201,6 +206,7 @@ for tickerIndex = 0 to trackedTickersCount - 1
 
         tradeBreakEvenPrice = tradeEntry + fullTradeFee
         tradePnl = (currentTickerPrice - tradeBreakEvenPrice) * tradeSize
+        totalSymbolPnl += tradePnl
         totalPnl += tradePnl
 
         if isCurrentTicker
@@ -219,15 +225,15 @@ for tickerIndex = 0 to trackedTickersCount - 1
     tickerParts = str.split(tickerSymbol, ":")
     cleanTickerName = array.size(tickerParts) > 1 ? array.get(tickerParts, 1) : tickerSymbol
 
-    startingRow = tickerIndex + 1  // First row reserved for header
+    startingRow = tickerIndex
     table.cell(pnlTable, 0, startingRow, cleanTickerName, text_color=color.gray)
     posSizeStr = (totalPositionSize > 0 ? "+" : "-") + str.tostring(totalPositionSize, format.mintick)
     table.cell(pnlTable, 1, startingRow, posSizeStr, text_color=color.green)
     avgEntryStr = "@" + str.tostring(averageEntryPrice, format.mintick)
     table.cell(pnlTable, 2, startingRow, avgEntryStr, text_color=color.gray)
     table.cell(pnlTable, 3, startingRow, "P&L", text_color=color.gray)
-    pnlStr = (totalPnl > 0 ? "+" : "") + str.tostring(totalPnl, format.mintick)
-    pnlColor = totalPnl > 0 ? color.green : color.red
+    pnlStr = (totalSymbolPnl > 0 ? "+" : "") + str.tostring(totalSymbolPnl, format.mintick)
+    pnlColor = totalSymbolPnl > 0 ? color.green : color.red
     table.cell(pnlTable, 4, startingRow, pnlStr, text_color=pnlColor)
 
     table.cell(pnlTable, 5, 0, "    ")
@@ -237,3 +243,8 @@ if filledRows == 0
     var settingsTable = table.new(position.bottom_right, 2, 1)
     table.cell(settingsTable, 0, 0, "⚙️ PnL", text_color=color.white, bgcolor=color.blue)
     table.cell(settingsTable, 1, 0, "    ")
+else if filledRows > 1
+    table.cell(pnlTable, 3, filledRows, "Total", text_color=color.gray)
+    totalPnlStr = (totalPnl > 0 ? "+" : "") + str.tostring(totalPnl, format.mintick)
+    totalPnlColor = totalPnl > 0 ? color.green : color.red
+    table.cell(pnlTable, 4, filledRows, totalPnlStr, text_color=totalPnlColor)
