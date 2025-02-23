@@ -226,25 +226,25 @@ for tickerIndex = 0 to trackedTickersCount - 1
     cleanTickerName = array.size(tickerParts) > 1 ? array.get(tickerParts, 1) : tickerSymbol
 
     startingRow = tickerIndex
-    table.cell(pnlTable, 0, startingRow, cleanTickerName, text_color=color.gray)
+    table.cell(pnlTable, 0, startingRow, cleanTickerName, text_color=color.gray, text_size=size.small)
     posSizeStr = (totalPositionSize > 0 ? "+" : "-") + str.tostring(totalPositionSize, format.mintick)
-    table.cell(pnlTable, 1, startingRow, posSizeStr, text_color=color.green)
+    table.cell(pnlTable, 1, startingRow, posSizeStr, text_color=color.green, text_size=size.small)
     avgEntryStr = "@" + str.tostring(averageEntryPrice, format.mintick)
-    table.cell(pnlTable, 2, startingRow, avgEntryStr, text_color=color.gray)
-    table.cell(pnlTable, 3, startingRow, "P&L", text_color=color.gray)
+    table.cell(pnlTable, 2, startingRow, avgEntryStr, text_color=color.gray, text_size=size.small)
+    table.cell(pnlTable, 3, startingRow, "P&L", text_color=color.gray, text_size=size.small)
     pnlStr = (totalSymbolPnl > 0 ? "+" : "") + str.tostring(totalSymbolPnl, format.mintick)
     pnlColor = totalSymbolPnl > 0 ? color.green : color.red
-    table.cell(pnlTable, 4, startingRow, pnlStr, text_color=pnlColor)
+    table.cell(pnlTable, 4, startingRow, pnlStr, text_color=pnlColor, text_size=size.small)
 
-    table.cell(pnlTable, 5, 0, "    ")
+    table.cell(pnlTable, 5, 0, "    ", text_size=size.small)
     filledRows += 1
 
 if filledRows == 0
     var settingsTable = table.new(position.bottom_right, 2, 1)
-    table.cell(settingsTable, 0, 0, "⚙️ PnL", text_color=color.white, bgcolor=color.blue)
-    table.cell(settingsTable, 1, 0, "    ")
+    table.cell(settingsTable, 0, 0, "⚙️ PnL", text_color=color.white, bgcolor=color.blue, text_size=size.small)
+    table.cell(settingsTable, 1, 0, "    ", text_size=size.small)
 else if filledRows > 1
-    table.cell(pnlTable, 3, filledRows, "Total", text_color=color.gray)
+    table.cell(pnlTable, 3, filledRows, "Total", text_color=color.gray, text_size=size.small)
     totalPnlStr = (totalPnl > 0 ? "+" : "") + str.tostring(totalPnl, format.mintick)
     totalPnlColor = totalPnl > 0 ? color.green : color.red
-    table.cell(pnlTable, 4, filledRows, totalPnlStr, text_color=totalPnlColor)
+    table.cell(pnlTable, 4, filledRows, totalPnlStr, text_color=totalPnlColor, text_size=size.small)
